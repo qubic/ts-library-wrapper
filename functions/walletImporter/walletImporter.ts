@@ -121,6 +121,9 @@ export class WalletImporter {
     const seed = this.getSeed(publicId);
     if (seed === undefined) return Promise.reject(null);
     try {
+
+      if (seed.isOnlyWatch) return "";
+
       const decryptedSeed = await this.decrypt(
         this.privateKey!,
         this.base64ToArrayBuffer(seed?.encryptedSeed!)
