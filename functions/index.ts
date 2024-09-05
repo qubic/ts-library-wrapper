@@ -5,6 +5,8 @@ import { addFunction as createTransactionAssetMove } from "./createTransactionAs
 
 import { addFunctions as keyManagement } from "./walletKeyManagement";
 import { addFunction as vaultImporter } from "./walletImporter";
+import { addFunction as verifyIdentity } from "./verifyIdentity";
+
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
   createPublicId(func);
@@ -12,6 +14,7 @@ export function addFunctions(func: Functioneer) {
   createTransactionAssetMove(func);
   keyManagement(func);
   vaultImporter(func);
+  verifyIdentity(func);
 }
 
 export async function runArgv() {

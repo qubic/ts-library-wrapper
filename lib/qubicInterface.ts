@@ -54,6 +54,10 @@ export class QubicInterface {
     };
   }
 
+  async verifyIdentity(publicId: string): Promise<boolean> {
+    return this.qubicHelper.verifyIdentity(publicId);
+  }
+
   async sendTransactionRaw(base64: string) {
     const transaction = new QubicTransaction();
     const header = new RequestResponseHeader(
