@@ -2,13 +2,13 @@
   "scripts": {
     "build-ts": "tsc",
     "build-win-new": "npm run build-ts && npm run build-win",
-    "build-html": "npx parcel build index.html",
+    "build-html": "rm -rf .parcel-cache && npx parcel build index.html",
     "build-win": "npx pkg --debug  -o dist/packaged/qubic-helper-win-64.exe --targets node16-win-x64  dist/index.js",
     "build-linux": "npx pkg --debug  -o dist/packaged/qubic-helper-linux-64 --targets node16-linux-x64  dist/index.js",
     "build-mac": "npx pkg --debug  -o dist/packaged/qubic-helper-mac-64 --targets node16-macos-x64  dist/index.js",
     "build-html-ts": "npm run build-ts && npm run build-html",
     "build": "npm run build-ts && npm run build-html && npm run build-win",
-    "build-all": "npm run build-ts && npm run build-html && npm run build-win && npm run build-linux && npm run build-mac"
+    "build-all": "npm run build-ts && rm -rf .parcel-cache && npm run build-html && npm run build-win && npm run build-linux && npm run build-mac"
   },
   "devDependencies": {
     "@babel/preset-typescript": "^7.24.7",

@@ -105,6 +105,16 @@ export class WalletService {
   }
 
   public addSeed(seed: IDecodedSeed): Promise<ISeed> {
+    if (seed.isOnlyWatch) {
+      const newSeed = <ISeed>{
+        encryptedSeed: "",
+        alias: seed.alias,
+        publicId: seed.publicId,
+        isOnlyWatch: seed.isOnlyWatch,
+      }
+      this.runningConfiguration.seeds.push(newSeed);
+      return Promise.resolve(newSeed);
+    }
     return this.encrypt(seed.seed).then((encryptedSeed) => {
       const newSeed = <ISeed>{
         encryptedSeed: btoa(
