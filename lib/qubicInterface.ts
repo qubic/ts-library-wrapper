@@ -5,6 +5,7 @@ import { QubicTransaction } from "@qubic-lib/qubic-ts-library/dist/qubic-types/Q
 import { RequestResponseHeader } from "@qubic-lib/qubic-ts-library/dist/qubic-communication/RequestResponseHeader";
 import { PublicKey } from "@qubic-lib/qubic-ts-library/dist/qubic-types/PublicKey";
 import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefinitions";
+import { QubicPackageBuilder } from "@qubic-lib/qubic-ts-library/dist/QubicPackageBuilder";
 
 export function encodeBase64Bytes(bytes: Uint8Array): string {
   return btoa(
@@ -67,6 +68,21 @@ export class QubicInterface {
     return {
       header: header.getPackageData(),
       transaction: base64ToArrayBuffer(base64),
+    };
+  }
+
+  //Signs a raw arraybuffer with a seed
+  //Gets the signed data, digest and signature (base64 encoded)
+  async getSignedFromRaw(rawBase64: string, seed: string) {
+    const rawUint8 = base64ToUint8(rawBase64);
+    const builder = new QubicPackageBuilder(rawUint8.byteLength);
+    builder.addRaw(rawUint8);
+    const { signedData, digest, signature } = await builder.signAndDigest(seed);
+
+    return {
+      signedData: arrayBufferToBase64(signedData),
+      digest: arrayBufferToBase64(digest),
+      signature: arrayBufferToBase64(signature),
     };
   }
 
