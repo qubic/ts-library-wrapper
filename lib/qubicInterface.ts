@@ -6,6 +6,7 @@ import { RequestResponseHeader } from "@qubic-lib/qubic-ts-library/dist/qubic-co
 import { PublicKey } from "@qubic-lib/qubic-ts-library/dist/qubic-types/PublicKey";
 import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefinitions";
 import { QubicPackageBuilder } from "@qubic-lib/qubic-ts-library/dist/QubicPackageBuilder";
+import { IQubicBuildPackage } from "@qubic-lib/qubic-ts-library/dist/qubic-types/IQubicBuildPackage";
 
 export function encodeBase64Bytes(bytes: Uint8Array): string {
   return btoa(
@@ -75,8 +76,47 @@ export class QubicInterface {
   //Gets the signed data, digest and signature (base64 encoded)
   async getSignedFromRaw(rawBase64: string, seed: string) {
     const rawUint8 = base64ToUint8(rawBase64);
-    const builder = new QubicPackageBuilder(rawUint8.byteLength);
-    builder.addRaw(rawUint8);
+    const builder = new QubicPackageBuilder(
+      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH
+    );
+    builder.adduint8Array(rawUint8);
+    const { signedData, digest, signature } = await builder.signAndDigest(seed);
+
+    return {
+      signedData: arrayBufferToBase64(signedData),
+      digest: arrayBufferToBase64(digest),
+      signature: arrayBufferToBase64(signature),
+    };
+  }
+
+  //Signs an ASCII string with a seed
+  //Gets the signed data, digest and signature (base64 encoded)
+  async getSignedFromASCIIString(asciiString: string, seed: string) {
+    const rawUint8 = Uint8Array.from(
+      asciiString.split("").map((x) => x.charCodeAt(0))
+    );
+    const builder = new QubicPackageBuilder(
+      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH
+    );
+    builder.adduint8Array(rawUint8);
+    const { signedData, digest, signature } = await builder.signAndDigest(seed);
+
+    return {
+      signedData: arrayBufferToBase64(signedData),
+      digest: arrayBufferToBase64(digest),
+      signature: arrayBufferToBase64(signature),
+    };
+  }
+
+  //Signs an UTF-8 string with a seed
+  //Gets the signed data, digest and signature (base64 encoded)
+  async getSignedFromUTFString(utf8String: string, seed: string) {
+    const textEncoder = new TextEncoder();
+    const rawUint8 = textEncoder.encode(utf8String);
+    const builder = new QubicPackageBuilder(
+      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH
+    );
+    builder.adduint8Array(rawUint8);
     const { signedData, digest, signature } = await builder.signAndDigest(seed);
 
     return {
@@ -99,6 +139,38 @@ export class QubicInterface {
       .setSourcePublicKey(sourceInfo.publicId)
       .setAmount(amount)
       .setTick(tick);
+
+    const tx = await transaction.build(sourceSeed);
+
+    return {
+      transaction: asBase64
+        ? arrayBufferToBase64(transaction.getPackageData())
+        : transaction.getPackageData(),
+    };
+  }
+
+  async getTransactionWithPayload(
+    sourceSeed: string,
+    destinationPublicId: string,
+    amount: number,
+    tick: number,
+    inputType: number,
+    payload: Uint8Array,
+    payloadPackageSize: number,
+    asBase64: boolean = true
+  ) {
+    const sourceInfo = await this.qubicHelper.createIdPackage(sourceSeed);
+
+    const transaction = new QubicTransaction()
+      .setDestinationPublicKey(destinationPublicId)
+      .setSourcePublicKey(sourceInfo.publicId)
+      .setAmount(amount)
+      .setInputType(inputType)
+      .setTick(tick)
+      .setPayload({
+        getPackageData: () => payload,
+        getPackageSize: () => payloadPackageSize,
+      } as IQubicBuildPackage);
 
     const tx = await transaction.build(sourceSeed);
 
