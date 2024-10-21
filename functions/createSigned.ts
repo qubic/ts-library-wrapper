@@ -26,8 +26,6 @@ export function addFunction(func: Functioneer) {
       "Signs ASCII text data",
       async (seed: string, ASCIIText: string) => {
         const qubicInterface = new QubicInterface();
-        console.log("IN!");
-
         const res = await qubicInterface.getSignedFromASCIIString(
           ASCIIText,
           seed
