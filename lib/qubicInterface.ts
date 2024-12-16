@@ -146,6 +146,7 @@ export class QubicInterface {
       transaction: asBase64
         ? arrayBufferToBase64(transaction.getPackageData())
         : transaction.getPackageData(),
+      transactionId: transaction.getId(),
     };
   }
 
@@ -156,7 +157,6 @@ export class QubicInterface {
     tick: number,
     inputType: number,
     payload: Uint8Array,
-    payloadPackageSize: number,
     asBase64: boolean = true
   ) {
     const sourceInfo = await this.qubicHelper.createIdPackage(sourceSeed);
@@ -169,7 +169,7 @@ export class QubicInterface {
       .setTick(tick)
       .setPayload({
         getPackageData: () => payload,
-        getPackageSize: () => payloadPackageSize,
+        getPackageSize: () => payload.length,
       } as IQubicBuildPackage);
 
     const tx = await transaction.build(sourceSeed);
@@ -178,6 +178,7 @@ export class QubicInterface {
       transaction: asBase64
         ? arrayBufferToBase64(transaction.getPackageData())
         : transaction.getPackageData(),
+      transactionId: transaction.getId(),
     };
   }
 
