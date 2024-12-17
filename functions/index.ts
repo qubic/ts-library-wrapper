@@ -7,12 +7,15 @@ import { addFunctions as keyManagement } from "./walletKeyManagement";
 import { addFunction as vaultImporter } from "./walletImporter";
 import { addFunction as verifyIdentity } from "./verifyIdentity";
 
+import { addFunction as createTransactionWithPayload } from "./createTransactionWithPayload";
+
 import { addFunction as createSigned } from "./createSigned";
 
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
   createPublicId(func);
   createTransaction(func);
+  createTransactionWithPayload(func);
   createTransactionAssetMove(func);
   keyManagement(func);
   vaultImporter(func);
@@ -68,3 +71,5 @@ export async function runBrowser(functionName: string, ...args: any[]) {
     };
   }
 }
+
+
