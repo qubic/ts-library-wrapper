@@ -16,19 +16,35 @@ export function addFunction(func: Functioneer) {
             ) => {
                 const qubicInterface = new QubicInterface();
 
-                // Decode the base64 payload if it's passed as a string
-                const decodedPayload = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+                // Decode the base64 payload with validation
+                let decodedPayload = null;
 
-                const res = await qubicInterface.getTransactionWithPayload(
-                    sourceSeed,
-                    destPublicId,
-                    amount,
-                    tick,
-                    inputType,
-                    decodedPayload,
-                    true
-                );
-                return JSON.stringify(res);
+                // Trim the payload to check for empty or whitespace-only strings
+                if (!payload || payload.trim().length === 0) {
+                    decodedPayload = null;
+                } else {
+                    try {
+                        decodedPayload = Uint8Array.from(Buffer.from(payload, "base64"));
+                    } catch (err) {
+                        throw new Error("Invalid base64 payload");
+                    }
+                }
+
+                // Perform the transaction
+                try {
+                    const res = await qubicInterface.getTransactionWithPayload(
+                        sourceSeed,
+                        destPublicId,
+                        amount,
+                        tick,
+                        inputType,
+                        decodedPayload,
+                        true
+                    );
+                    return JSON.stringify(res);
+                } catch (error) {
+                    throw new Error(`Failed to create transaction: ${error.message}`);
+                }
             }
         )
         .addField("seed", "string", "Seed of the source account")
@@ -36,5 +52,5 @@ export function addFunction(func: Functioneer) {
         .addField("amount", "number", "Amount to transfer")
         .addField("tick", "number", "Tick of the transaction")
         .addField("inputType", "number", "Input type for the transaction")
-        .addField("payload", "string", "Base64 encoded payload")
+        .addField("payload", "string", "Base64 encoded payload");
 }
