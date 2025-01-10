@@ -43,7 +43,7 @@ export function addFunction(func: Functioneer) {
       async (seed: string, UTF8Text: string) => {
         const qubicInterface = new QubicInterface();
 
-        const res = await qubicInterface.getSignedFromUTFString(UTF8Text, seed);
+        const res = await qubicInterface.getSignedFromUTFString("Qubic Signed Message:\n" + UTF8Text, seed);
         return JSON.stringify(res);
       }
     )
