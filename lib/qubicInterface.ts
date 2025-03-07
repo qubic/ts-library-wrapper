@@ -182,6 +182,19 @@ export class QubicInterface {
     };
   }
 
+  parseAssetTransferPayload = async (payload: Uint8Array) => {
+    const assetTransfer = new QubicTransferAssetPayload();
+    await assetTransfer.parse(payload);
+    return {
+      assetName: Object.values(assetTransfer.getAssetName())
+        .map((code) => String.fromCharCode(code))
+        .join("")
+        .replace(/\0/g, ""),
+      assetIssuer: assetTransfer.getNewOwnerAndPossessor().getIdentityAsSring(),
+      numberOfUnits: assetTransfer.getNumberOfUnits(),
+    };
+  };
+
   getAssetTransferTransaction = async (
     sourceSeed: string,
     destinationPublicId: string,

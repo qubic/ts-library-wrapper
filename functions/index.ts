@@ -8,8 +8,10 @@ import { addFunction as vaultImporter } from "./walletImporter";
 import { addFunction as verifyIdentity } from "./verifyIdentity";
 
 import { addFunction as createTransactionWithPayload } from "./createTransactionWithPayload";
+import { addFunction as parseAssetTransferPayload } from "./parseAssetTransferPayload";
 
 import { addFunction as createSigned } from "./createSigned";
+import { parse } from "path";
 
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
@@ -21,6 +23,7 @@ export function addFunctions(func: Functioneer) {
   vaultImporter(func);
   verifyIdentity(func);
   createSigned(func);
+  parseAssetTransferPayload(func);
 }
 
 export async function runArgv() {
