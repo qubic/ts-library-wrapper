@@ -11,7 +11,7 @@ import { addFunction as createTransactionWithPayload } from "./createTransaction
 import { addFunction as parseAssetTransferPayload } from "./parseAssetTransferPayload";
 
 import { addFunction as createSigned } from "./createSigned";
-import { parse } from "path";
+import { addFunction as parseTransferSendManyPayload } from "./parseTransferSendManyPayload";
 
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
@@ -24,6 +24,7 @@ export function addFunctions(func: Functioneer) {
   verifyIdentity(func);
   createSigned(func);
   parseAssetTransferPayload(func);
+  parseTransferSendManyPayload(func);
 }
 
 export async function runArgv() {
