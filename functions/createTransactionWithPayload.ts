@@ -21,7 +21,7 @@ export function addFunction(func: Functioneer) {
 
                 // Trim the payload to check for empty or whitespace-only strings
                 if (!payload || payload.trim().length === 0) {
-                    decodedPayload = null;
+                    decodedPayload = new Uint8Array(0);  // Empty array instead of null
                 } else {
                     try {
                         decodedPayload = Uint8Array.from(Buffer.from(payload, "base64"));
