@@ -7,6 +7,7 @@ import { PublicKey } from "@qubic-lib/qubic-ts-library/dist/qubic-types/PublicKe
 import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefinitions";
 import { QubicPackageBuilder } from "@qubic-lib/qubic-ts-library/dist/QubicPackageBuilder";
 import { IQubicBuildPackage } from "@qubic-lib/qubic-ts-library/dist/qubic-types/IQubicBuildPackage";
+import { QubicTransferSendManyPayload } from "@qubic-lib/qubic-ts-library/dist/qubic-types/transacion-payloads/QubicTransferSendManyPayload";
 
 export function encodeBase64Bytes(bytes: Uint8Array): string {
   return btoa(
@@ -72,6 +73,17 @@ export class QubicInterface {
     };
   }
 
+  async parseTransferSendManyPayload(payload: Uint8Array) {
+    const parsedSendManyPayload = new QubicTransferSendManyPayload();
+    await parsedSendManyPayload.parse(payload);
+
+    const transfers = parsedSendManyPayload.getTransfers();
+
+    return transfers.map((item) => ({
+      amount: item.amount.getNumber().toString(),
+      destId: item.destId.getIdentityAsSring() ?? "",
+    }));
+  }
   //Signs a raw arraybuffer with a seed
   //Gets the signed data, digest and signature (base64 encoded)
   async getSignedFromRaw(rawBase64: string, seed: string) {
@@ -181,6 +193,19 @@ export class QubicInterface {
       transactionId: transaction.getId(),
     };
   }
+
+  parseAssetTransferPayload = async (payload: Uint8Array) => {
+    const assetTransfer = new QubicTransferAssetPayload();
+    await assetTransfer.parse(payload);
+    return {
+      assetName: Object.values(assetTransfer.getAssetName())
+        .map((code) => String.fromCharCode(code))
+        .join("")
+        .replace(/\0/g, ""),
+      assetIssuer: assetTransfer.getNewOwnerAndPossessor().getIdentityAsSring(),
+      numberOfUnits: assetTransfer.getNumberOfUnits(),
+    };
+  };
 
   getAssetTransferTransaction = async (
     sourceSeed: string,
