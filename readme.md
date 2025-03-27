@@ -88,7 +88,7 @@ Will result in:
 
 Will not run in browser
 
-### Read the contents of a base64 string
+### Read the contents of a base64 encoded vault file
 
 Will only run in browser
 runBrowser("wallet.importVault","123456a!","eyJ.............................==");
@@ -97,6 +97,58 @@ Will result in
 `{
 "seeds": [ {"alias":"alias1","publicId":"BZBQFLLBNCXEMGLOBHUVFTLUPLVCPQUASSILFABOFFBCADQSSUPNWLZBQEXK", "seed":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
 }
+
+### Sign an base64 encoded Uint8Array with a seed
+
+runBrowser("createSigned.fromRaw,"wqbdupxgcaimwdsnchitjmsplzclkqokhadgehdxqogeeiovzvadstt" , "LFBFINqxRgQETkwFSxtTK0pVZzLSmAs=")
+
+Will result in
+`{
+"signedData":"LFBFINqxRgQETkwFSxtTK0pVZzLSmAt1zcuzWHmPs0DsJi+D3Eh0bxlU0L1wYn/UhuVILvA+5HHl3nNmYzKAbICytq4UdmtfCQ8GFX95Fo6lI9gI+g8A","digest":"dQhtnnSgtj7DnK6aQ+E5uQRk/m8jvv4wrwNTe2byf3s=",
+"signature":"dc3Ls1h5j7NA7CYvg9xIdG8ZVNC9cGJ/1IblSC7wPuRx5d5zZmMygGyAsrauFHZrXwkPBhV/eRaOpSPYCPoPAA==",
+"status":"ok"
+}
+
+### Sign an ASCII encoded String with a seed
+
+runBrowser("createSigned.fromASCII,"wqbdupxgcaimwdsnchitjmsplzclkqokhadgehdxqogeeiovzvadstt" , "thisIsAnAscIIText")
+
+Will result in
+`{
+"signedData":"dGhpc0lzQW5Bc2NJSVRleHQ2ZEAJeoIMWydjfntAFSIHLxW8I7fgquFczd/TIUdrgcXBrxssVY2FWpuNM8h8nP4YNU8UvP2vA7PgbOzyDhMA","digest":"0Gm1OdQ2luukSPJqj2fnvuvGBvW7kOL5ZDDLA1ezfGo=",
+"signature":"NmRACXqCDFsnY357QBUiBy8VvCO34KrhXM3f0yFHa4HFwa8bLFWNhVqbjTPIfJz+GDVPFLz9rwOz4Gzs8g4TAA==",
+"status":"ok"
+}`
+
+### Sign a UTF-8 encoded string with a seed
+
+runBrowser("createSigned.fromUTF,"wqbdupxgcaimwdsnchitjmsplzclkqokhadgehdxqogeeiovzvadstt" , "😊😊😊😊")
+
+Will result in
+`{
+"signedData":"8J+YivCfmIrwn5iK8J+YinUNmhF0SMHePsWfPcnAy2FpTnLavU+lc9x0l13Eh02+dr+JuRppgCDdOZyXFe57ETE5acND8wzufeXpN0vgFgA=","digest":"2s/NjymcINVrG+ZoQ69PSTAd5MKzv5UGVBfsrRZR6kE=",
+"signature":"dQ2aEXRIwd4+xZ89ycDLYWlOctq9T6Vz3HSXXcSHTb52v4m5GmmAIN05nJcV7nsRMTlpw0PzDO595ek3S+AWAA==",
+"status":"ok"
+}`
+
+### Parse the payload of a transfer of QX Transfer Shares
+
+runBrowser("parseAssetTransferPayload", "7c151fb37ec505fd34cbf5ea0dcea413f24d9e3a4dd030e5d9047faf4061b0aadedab224eddadcfcd90c6737de1fbb1fa0380679ccdd1a322afacf3e433ea0ac51434150000000002316000000000000")
+
+Will result in
+`
+{assetName: QCAP, assetIssuer: ITIRKKVFOSHYIHJORKDWUWZUYYXAIEEAYJANFRRVLBMPQZVTVTGNBJAFIUCA, numberOfUnits: {value: 5667}, status: ok}
+`
+
+### Parse the payload of a QUtil Send to Many
+
+runBrowser("parseTransferSendManyPayload", "7c151fb37ec505fd34cbf5ea0dcea413f24d9e3a4dd030e5d9047faf4061b0aadedab224eddadcfcd90c6737de1fbb1fa0380679ccdd1a322afacf3e433ea0ac51434150000000002316000000000000")
+
+Will result in
+`
+{"0":{"amount":"24228094","destId":"UOOJAJPGQFVYXEUHAEEORABYMULAYFWQLWLKDCOVBHOFQGHBFKJFMQUDUMKK"},"1":{"amount":"4038015","destId":"JRJQDAPCMAKHUFCPHSTTBNIIESKCQEXGKAWOYAHSDASPDSAUKEIBQAYERBIK"},"2":{"amount":"113064442","destId":"YCGYICIFPZUJHDCPGFEAADKDXVACYQSTPGUMXFCUFDFIEEKBXKPVDYFAXEWK"},"3":{"amount":"4038015","destId":"EETPTHSSWLAWBBXWRRNBTZFASPUCMGCNOYWKBTNFBAYGBKBDAVUQHXRFYIZJ"},"4":{"amount":"4038015","destId":"XOJGYAJBAFFODAWDHXFYHZIDWNCAFWMPIBHMWKFDUCRTGQRLYVZYZHFHOTAH"},"5":{"amount":"1122568392","destId":"RJMSOJQHTXADODNHARGBFUGQARDCFHNTMFLTSRZCYGXTIMQOAHLEAMKDGRFA"},"6":{"amount":"214014837","destId":"QOUHWYSJFNWMYAKLYPMPIJBLRUVBCPSFXCXFMHHMNDNJJTTCZXKVULIDNBXK"},"7":{"amount":"24228094","destId":"LXYMESTELGNMKAUIOHQVFFLDENWACVNNNEUNMGRSHAKPXFPWCTCODOLBWJXJ"},"8":{"amount":"20190079","destId":"AGQAENGDCNBTYDNOQDAOAMRGXMACALBWVKHRKHEZBEBFYYONQTGCRQPFQTIE"},"9":{"amount":"64608252","destId":"KTMQPESVHSMMUENEXODDVFJIHKKCIMBCICGPGTGBGHLHJKYRHABWSUCCYTVN"},"status":"ok"}
+`
+
 
 ### Error handling
 

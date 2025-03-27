@@ -7,14 +7,24 @@ import { addFunctions as keyManagement } from "./walletKeyManagement";
 import { addFunction as vaultImporter } from "./walletImporter";
 import { addFunction as verifyIdentity } from "./verifyIdentity";
 
+import { addFunction as createTransactionWithPayload } from "./createTransactionWithPayload";
+import { addFunction as parseAssetTransferPayload } from "./parseAssetTransferPayload";
+
+import { addFunction as createSigned } from "./createSigned";
+import { addFunction as parseTransferSendManyPayload } from "./parseTransferSendManyPayload";
+
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
   createPublicId(func);
   createTransaction(func);
+  createTransactionWithPayload(func);
   createTransactionAssetMove(func);
   keyManagement(func);
   vaultImporter(func);
   verifyIdentity(func);
+  createSigned(func);
+  parseAssetTransferPayload(func);
+  parseTransferSendManyPayload(func);
 }
 
 export async function runArgv() {
@@ -65,3 +75,5 @@ export async function runBrowser(functionName: string, ...args: any[]) {
     };
   }
 }
+
+
