@@ -202,7 +202,7 @@ export class QubicInterface {
         .map((code) => String.fromCharCode(code))
         .join("")
         .replace(/\0/g, ""),
-      assetIssuer: assetTransfer.getNewOwnerAndPossessor().getIdentityAsSring(),
+      newOwnerAndPossessor: assetTransfer.getNewOwnerAndPossessor().getIdentityAsSring(),
       numberOfUnits: assetTransfer.getNumberOfUnits(),
     };
   };
