@@ -28,7 +28,10 @@
     "@qubic-lib/qubic-ts-library": "^0.1.5",
     "@qubic-lib/qubic-ts-vault-library": "^1.0.2",
     "bignumber.js": "^4.0.4",
+    "cross-spawn": "^7.0.6",
+    "elliptic": "^6.6.1",
     "functioneer": "^1.0.4",
+    "micromatch": "^4.0.8",
     "qubic-ts-library": "^0.0.7",
     "typescript": "^5.4.5"
   }
