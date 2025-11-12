@@ -12,6 +12,7 @@ import { addFunction as parseAssetTransferPayload } from "./parseAssetTransferPa
 
 import { addFunction as createSigned } from "./createSigned";
 import { addFunction as parseTransferSendManyPayload } from "./parseTransferSendManyPayload";
+import { addFunction as publicKeyStringToBytes } from "./publicKeyStringToBytes";
 
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
@@ -25,6 +26,7 @@ export function addFunctions(func: Functioneer) {
   createSigned(func);
   parseAssetTransferPayload(func);
   parseTransferSendManyPayload(func);
+  publicKeyStringToBytes(func);
 }
 
 export async function runArgv() {
