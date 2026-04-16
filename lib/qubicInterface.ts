@@ -8,10 +8,13 @@ import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefiniti
 import { QubicPackageBuilder } from "@qubic-lib/qubic-ts-library/dist/QubicPackageBuilder";
 import { IQubicBuildPackage } from "@qubic-lib/qubic-ts-library/dist/qubic-types/IQubicBuildPackage";
 import { QubicTransferSendManyPayload } from "@qubic-lib/qubic-ts-library/dist/qubic-types/transacion-payloads/QubicTransferSendManyPayload";
+import { KeyHelper } from "@qubic-lib/qubic-ts-library/dist/keyHelper";
+import crypto from "../crypto/index.js";
+import { publicKeyStringToBytes } from "../converter/converter.js";
 
 export function encodeBase64Bytes(bytes: Uint8Array): string {
   return btoa(
-    bytes.reduce((acc, current) => acc + String.fromCharCode(current), "")
+    bytes.reduce((acc, current) => acc + String.fromCharCode(current), ""),
   );
 }
 
@@ -65,7 +68,7 @@ export class QubicInterface {
     const transaction = new QubicTransaction();
     const header = new RequestResponseHeader(
       RequestPackageTypes.BROADCAST_TRANSACTION,
-      transaction.getPackageSize()
+      transaction.getPackageSize(),
     );
     return {
       header: header.getPackageData(),
@@ -89,7 +92,7 @@ export class QubicInterface {
   async getSignedFromRaw(rawBase64: string, seed: string) {
     const rawUint8 = base64ToUint8(rawBase64);
     const builder = new QubicPackageBuilder(
-      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH
+      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH,
     );
     builder.adduint8Array(rawUint8);
     const { signedData, digest, signature } = await builder.signAndDigest(seed);
@@ -105,10 +108,10 @@ export class QubicInterface {
   //Gets the signed data, digest and signature (base64 encoded)
   async getSignedFromASCIIString(asciiString: string, seed: string) {
     const rawUint8 = Uint8Array.from(
-      asciiString.split("").map((x) => x.charCodeAt(0))
+      asciiString.split("").map((x) => x.charCodeAt(0)),
     );
     const builder = new QubicPackageBuilder(
-      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH
+      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH,
     );
     builder.adduint8Array(rawUint8);
     const { signedData, digest, signature } = await builder.signAndDigest(seed);
@@ -126,7 +129,7 @@ export class QubicInterface {
     const textEncoder = new TextEncoder();
     const rawUint8 = textEncoder.encode(utf8String);
     const builder = new QubicPackageBuilder(
-      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH
+      rawUint8.byteLength + QubicDefinitions.SIGNATURE_LENGTH,
     );
     builder.adduint8Array(rawUint8);
     const { signedData, digest, signature } = await builder.signAndDigest(seed);
@@ -138,12 +141,72 @@ export class QubicInterface {
     };
   }
 
+  // Signs a UTF-8 message with a seed (no prefix, no pre-hashing).
+  // Produces signatures compatible with the web wallet and Qubic Toolkit.
+  // Distinct from getSignedFromUTFString which is used by the WalletConnect
+  // createSigned.fromUTF8 flow and prepends "Qubic Signed Message:\n".
+  async signMessage(utf8Text: string, seed: string) {
+    const { schnorrq, K12 } = await crypto;
+
+    const keyHelper = new KeyHelper();
+    const privateKey = keyHelper.privateKey(seed, 0, K12);
+    const publicKeyWithChecksum = keyHelper.createPublicKey(
+      privateKey,
+      schnorrq,
+      K12,
+    );
+    const publicKey = publicKeyWithChecksum.slice(0, 32);
+
+    const messageBytes = new TextEncoder().encode(utf8Text);
+    const signature = schnorrq.sign(privateKey, publicKey, messageBytes);
+
+    return {
+      signature: encodeBase64Bytes(signature),
+    };
+  }
+
+  // Verifies a UTF-8 message signature against a public identity
+  // (no prefix, no pre-hashing). Paired with signMessage.
+  async verifyMessage(
+    identity: string,
+    utf8Text: string,
+    signatureB64: string,
+  ): Promise<boolean> {
+    const { schnorrq } = await crypto;
+    const publicKeyBytes = publicKeyStringToBytes(identity);
+    const messageBytes = new TextEncoder().encode(utf8Text);
+    const signatureBytes = base64ToUint8(signatureB64);
+
+    const result = schnorrq.verify(
+      publicKeyBytes,
+      messageBytes,
+      signatureBytes,
+    );
+    return result === 1;
+  }
+
+  // Computes a 1-byte K12 checksum of the given data.
+  // Used for appending the checksum byte to raw signatures
+  // (producing the 65-byte / 130-char shifted-hex format
+  // used by the Qubic.NET Wallet and Toolkit).
+  async computeK12Checksum(dataB64: string) {
+    const { K12 } = await crypto;
+    const dataBytes = base64ToUint8(dataB64);
+
+    const checksumOut = new Uint8Array(1);
+    K12(dataBytes, checksumOut, 1);
+
+    return {
+      checksum: encodeBase64Bytes(checksumOut),
+    };
+  }
+
   async getTransaction(
     sourceSeed: string,
     destinationPublicId: string,
     amount: number,
     tick: number,
-    asBase64: boolean = true
+    asBase64: boolean = true,
   ) {
     const sourceInfo = await this.qubicHelper.createIdPackage(sourceSeed);
     const transaction = new QubicTransaction()
@@ -169,7 +232,7 @@ export class QubicInterface {
     tick: number,
     inputType: number,
     payload: Uint8Array,
-    asBase64: boolean = true
+    asBase64: boolean = true,
   ) {
     const sourceInfo = await this.qubicHelper.createIdPackage(sourceSeed);
 
@@ -202,7 +265,9 @@ export class QubicInterface {
         .map((code) => String.fromCharCode(code))
         .join("")
         .replace(/\0/g, ""),
-      newOwnerAndPossessor: assetTransfer.getNewOwnerAndPossessor().getIdentityAsSring(),
+      newOwnerAndPossessor: assetTransfer
+        .getNewOwnerAndPossessor()
+        .getIdentityAsSring(),
       numberOfUnits: assetTransfer.getNumberOfUnits(),
     };
   };
@@ -214,7 +279,7 @@ export class QubicInterface {
     assetIssuer: string,
     numberOfUnits: number,
     tick: number,
-    asBase64: boolean = true
+    asBase64: boolean = true,
   ) => {
     const sourceInfo = await this.qubicHelper.createIdPackage(sourceSeed);
     const targetAddress = new PublicKey(destinationPublicId);

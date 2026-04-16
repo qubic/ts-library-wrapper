@@ -1,7 +1,5 @@
 import { Functioneer } from "functioneer";
-import { encodeBase64Bytes } from "../lib/qubicInterface";
-import { KeyHelper } from "@qubic-lib/qubic-ts-library/dist/keyHelper";
-import crypto from "../crypto/index.js";
+import { QubicInterface } from "../lib/qubicInterface";
 
 /**
  * User-facing message signing function (no prefix, no extra hashing).
@@ -20,24 +18,9 @@ export function addFunction(func: Functioneer) {
       "signMessage",
       "Signs a UTF-8 message with a seed (no prefix, no pre-hashing). Use for user-facing message signing.",
       async (seed: string, UTF8Text: string) => {
-        const cryptoModule = await crypto;
-        const { schnorrq, K12 } = cryptoModule;
-
-        const keyHelper = new KeyHelper();
-        const privateKey = keyHelper.privateKey(seed, 0, K12);
-        const publicKeyWithChecksum = keyHelper.createPublicKey(
-          privateKey,
-          schnorrq,
-          K12
-        );
-        const publicKey = publicKeyWithChecksum.slice(0, 32);
-
-        const messageBytes = new TextEncoder().encode(UTF8Text);
-        const signature = schnorrq.sign(privateKey, publicKey, messageBytes);
-
-        return JSON.stringify({
-          signature: encodeBase64Bytes(signature),
-        });
+        const qubicInterface = new QubicInterface();
+        const res = await qubicInterface.signMessage(UTF8Text, seed);
+        return JSON.stringify(res);
       }
     )
     .addField("seed", "string", "Seed to sign with")

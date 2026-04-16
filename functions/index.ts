@@ -13,6 +13,7 @@ import { addFunction as parseAssetTransferPayload } from "./parseAssetTransferPa
 import { addFunction as createSigned } from "./createSigned";
 import { addFunction as signMessage } from "./signMessage";
 import { addFunction as verifyMessage } from "./verifyMessage";
+import { addFunction as computeK12Checksum } from "./computeK12Checksum";
 import { addFunction as parseTransferSendManyPayload } from "./parseTransferSendManyPayload";
 
 export function addFunctions(func: Functioneer) {
@@ -27,6 +28,7 @@ export function addFunctions(func: Functioneer) {
   createSigned(func);
   signMessage(func);
   verifyMessage(func);
+  computeK12Checksum(func);
   parseAssetTransferPayload(func);
   parseTransferSendManyPayload(func);
 }

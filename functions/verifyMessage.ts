@@ -1,7 +1,5 @@
 import { Functioneer } from "functioneer";
-import { base64ToUint8 } from "../lib/qubicInterface";
-import { publicKeyStringToBytes } from "../converter/converter.js";
-import crypto from "../crypto/index.js";
+import { QubicInterface } from "../lib/qubicInterface";
 
 /**
  * Verifies a UTF-8 message signature produced by `signMessage`
@@ -19,19 +17,13 @@ export function addFunction(func: Functioneer) {
       "verifyMessage",
       "Verifies a UTF-8 message signature against a public identity (no prefix, no pre-hashing).",
       async (identity: string, UTF8Text: string, signatureB64: string) => {
-        const cryptoModule = await crypto;
-
-        const publicKeyBytes = publicKeyStringToBytes(identity);
-        const messageBytes = new TextEncoder().encode(UTF8Text);
-        const signatureBytes = base64ToUint8(signatureB64);
-
-        const result = cryptoModule.schnorrq.verify(
-          publicKeyBytes,
-          messageBytes,
-          signatureBytes
+        const qubicInterface = new QubicInterface();
+        const isValid = await qubicInterface.verifyMessage(
+          identity,
+          UTF8Text,
+          signatureB64
         );
-
-        return JSON.stringify({ isValid: result === 1 });
+        return JSON.stringify({ isValid });
       }
     )
     .addField("identity", "string", "The 60-character Qubic public identity")
