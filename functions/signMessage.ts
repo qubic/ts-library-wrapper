@@ -1,0 +1,49 @@
+import { Functioneer } from "functioneer";
+import { encodeBase64Bytes } from "../lib/qubicInterface";
+import { KeyHelper } from "@qubic-lib/qubic-ts-library/dist/keyHelper";
+import crypto from "../crypto/index.js";
+
+/**
+ * User-facing message signing function (no prefix, no extra hashing).
+ *
+ * Distinct from `createSigned.fromUTF8` / `createSigned.fromRaw` which:
+ *   - prepend "Qubic Signed Message:\n" to defend against malicious dApps
+ *     tricking users into signing raw transactions via WalletConnect
+ *   - K12-hash the message before signing (via QubicPackageBuilder)
+ *
+ * `signMessage` signs the raw message bytes directly, producing signatures
+ * compatible with the web wallet and the Qubic Toolkit.
+ */
+export function addFunction(func: Functioneer) {
+  func
+    .registerFunction(
+      "signMessage",
+      "Signs a UTF-8 message with a seed (no prefix, no pre-hashing). Use for user-facing message signing.",
+      async (seed: string, UTF8Text: string) => {
+        const cryptoModule = await crypto;
+        const { schnorrq, K12 } = cryptoModule;
+
+        const keyHelper = new KeyHelper();
+        const privateKey = keyHelper.privateKey(seed, 0, K12);
+        const publicKeyWithChecksum = keyHelper.createPublicKey(
+          privateKey,
+          schnorrq,
+          K12
+        );
+        const publicKey = publicKeyWithChecksum.slice(0, 32);
+
+        const messageBytes = new TextEncoder().encode(UTF8Text);
+        const signature = schnorrq.sign(privateKey, publicKey, messageBytes);
+
+        return JSON.stringify({
+          signature: encodeBase64Bytes(signature),
+        });
+      }
+    )
+    .addField("seed", "string", "Seed to sign with")
+    .addField(
+      "UTF8Text",
+      "string",
+      "The UTF-8 text message to be signed (signed as-is, no prefix)"
+    );
+}
