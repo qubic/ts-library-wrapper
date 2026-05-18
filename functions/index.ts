@@ -15,6 +15,7 @@ import { addFunction as signMessage } from "./signMessage";
 import { addFunction as verifyMessage } from "./verifyMessage";
 import { addFunction as computeK12Checksum } from "./computeK12Checksum";
 import { addFunction as parseTransferSendManyPayload } from "./parseTransferSendManyPayload";
+import { addFunction as publicKeyStringToBytes } from "./publicKeyStringToBytes";
 
 export function addFunctions(func: Functioneer) {
   // Register all functions with the functioneer
@@ -31,6 +32,7 @@ export function addFunctions(func: Functioneer) {
   computeK12Checksum(func);
   parseAssetTransferPayload(func);
   parseTransferSendManyPayload(func);
+  publicKeyStringToBytes(func);
 }
 
 export async function runArgv() {
