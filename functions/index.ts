@@ -5,6 +5,7 @@ import { addFunction as createTransactionAssetMove } from "./createTransactionAs
 
 import { addFunctions as keyManagement } from "./walletKeyManagement";
 import { addFunction as vaultImporter } from "./walletImporter";
+import { addFunctions as vaultManagement } from "./walletVault";
 import { addFunction as verifyIdentity } from "./verifyIdentity";
 
 import { addFunction as createTransactionWithPayload } from "./createTransactionWithPayload";
@@ -25,6 +26,7 @@ export function addFunctions(func: Functioneer) {
   createTransactionAssetMove(func);
   keyManagement(func);
   vaultImporter(func);
+  vaultManagement(func);
   verifyIdentity(func);
   createSigned(func);
   signMessage(func);
