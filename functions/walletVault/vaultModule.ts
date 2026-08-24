@@ -1,15 +1,11 @@
 /**
- * Loads `@qubic.org/vault` — Node/CommonJS variant.
+ * Loads `@qubic.org/vault` — Node/CommonJS variant. `new Function` is what keeps this a real
+ * `import()` through tsc's CommonJS downlevelling; a plain `import` or `import()` becomes a
+ * `require()`, which cannot load an ESM-only package and kills the CLI on startup.
  *
- * The package is ESM-only: its `exports` map has no `require` condition. tsc emits CommonJS
- * (see tsconfig `module`), so a plain `import` — or even a plain `import()`, which tsc
- * downlevels to `require()` — throws `ERR_PACKAGE_PATH_NOT_EXPORTED` and kills the `pkg`-built
- * CLIs on startup. Wrapping the dynamic import in `new Function` keeps it a real `import()`
- * through downlevelling, which Node resolves fine from CommonJS.
- *
- * Bundlers use `vaultModule.browser.ts` instead (mapped via the `browser` field in
- * package.json), because a dynamic import would make Parcel emit a separate async chunk and
- * the webview only ever loads the single HTML file.
+ * Bundlers get `vaultModule.browser.ts` instead, via the `browser` field in package.json.
+ * Both halves are load-bearing — see *The ESM/CommonJS problem* in migration-test/README.md
+ * before changing either, and re-run the two checks it lists.
  */
 let vaultModulePromise: Promise<any> | null = null;
 

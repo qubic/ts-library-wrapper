@@ -1,12 +1,10 @@
 /**
- * Loads `@qubic.org/vault` — bundler variant (Parcel / the webview build).
+ * Loads `@qubic.org/vault` — bundler variant, mapped from `vaultModule.ts` by the `browser`
+ * field in package.json. The import must stay **static** so Parcel inlines the library into
+ * the single self-contained HTML that Flutter ships; a dynamic one emits a separate async
+ * chunk the webview never loads.
  *
- * A static import is what we want here: Parcel inlines the module into the single
- * self-contained HTML that Flutter ships as an asset. A dynamic import would instead emit a
- * separate async chunk, which the webview never loads.
- *
- * package.json maps `vaultModule.ts` to this file for browser targets. Node keeps the
- * lazy variant so the CommonJS CLI build can still start — see `vaultModule.ts`.
+ * See *The ESM/CommonJS problem* in migration-test/README.md before changing this.
  */
 import * as vaultModule from "@qubic.org/vault";
 

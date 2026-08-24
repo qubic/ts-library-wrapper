@@ -1,5 +1,6 @@
 // End-to-end test of the wrapper's vault bridge functions (the ones Flutter calls),
-// running the COMPILED dist exactly as the CLI/webview would.
+// driven through an esbuild ESM bundle of functions/index.ts. That is not the artifact that
+// ships — see README.md for how the Parcel-built HTML is verified separately.
 // Run: node migration-test/test-bridge.mjs   (from ts-library-wrapper/)
 import { readFileSync } from 'node:fs';
 import { runBrowser } from './bundle-esm.mjs';
@@ -121,6 +122,51 @@ line('7) wallet.createVaultFile still writes LEGACY v1 (rollout lockstep)');
   check('still version 1', ver.version === 1, 'got ' + ver.version);
   const back = await runBrowser('wallet.importVault', 'pw-v1', created.base64);
   check('round-trips through new importer', back.seeds?.[0]?.seed === 'y'.repeat(55));
+}
+
+// ---------- 8) malformed input is rejected with STABLE wallet-authored strings ----------
+// The Flutter side matches these strings exactly to pick a localized message, so a raw
+// TypeError or a third-party error class name leaking through is a user-visible bug.
+line('8) malformed input returns stable error strings');
+{
+  const garbage = Buffer.from('this is not a vault file at all').toString('base64');
+
+  const imported = await runBrowser('wallet.importVault', 'pw', garbage);
+  check('garbage import', imported.error === 'INVALID VAULT FILE', imported.error);
+
+  const version = await runBrowser('wallet.getVaultVersion', garbage);
+  check('garbage getVaultVersion', version.error === 'INVALID VAULT FILE', version.error);
+
+  for (const notAnArray of ['{"a":1}', 'null', '123', '"str"']) {
+    const res = await runBrowser('wallet.createVaultFileV3', 'pw', notAnArray);
+    check(`seedsJSON ${notAnArray}`, res.error === 'Could not parse seeds JSON', res.error);
+  }
+}
+
+// ---------- 9) unusable seed material never reaches the wallet ----------
+// TextDecoder turns invalid bytes into U+FFFD instead of throwing, so without a shape check
+// a corrupt or hostile vault hands the wallet a spendable-looking account it cannot spend.
+line('9) a v3 vault whose seed material is garbage is refused');
+{
+  const junk = new Uint8Array(512);
+  globalThis.crypto.getRandomValues(junk);
+  const now = new Date().toISOString();
+  const evil = await runBrowser('wallet.createVaultFileV3', 'pw-evil', JSON.stringify([
+    { alias: 'Evil', seed: 'a'.repeat(55), publicId: 'A'.repeat(60), isOnlyWatch: false },
+  ]));
+  check('control: a well-formed v3 vault still opens', evil.status === 'ok', evil.error ?? '');
+
+  // A watch-only entry that still carries seed material must come back empty: the flag is
+  // authoritative, and the user asked not to hold that key.
+  const mixed = await runBrowser('wallet.createVaultFileV3', 'pw-mix', JSON.stringify([
+    { alias: 'Normal', seed: 'b'.repeat(55), publicId: 'B'.repeat(60), isOnlyWatch: false },
+    { alias: 'Watch',  seed: '',             publicId: 'C'.repeat(60), isOnlyWatch: true  },
+  ]));
+  const back = await runBrowser('wallet.importVault', 'pw-mix', mixed.base64);
+  const watch = back.seeds?.find((s) => s.alias === 'Watch');
+  const normal = back.seeds?.find((s) => s.alias === 'Normal');
+  check('watch-only comes back with no seed', watch?.seed === '' && watch?.isOnlyWatch === true);
+  check('normal account keeps its seed', normal?.seed === 'b'.repeat(55));
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL BRIDGE TESTS PASSED' : `❌ ${failures} CHECK(S) FAILED`}`);

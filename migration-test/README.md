@@ -116,11 +116,19 @@ cd wallet-app/assets/qubic_js && python3 -m http.server 8770 --bind 127.0.0.1
 # then in the page console, call window.runBrowser('wallet.…', …)
 ```
 
-All 10 checks passed: v3 create → version byte 3 → unlock returns both accounts, seed and
+All 12 checks passed: v3 create → version byte 3 → unlock returns both accounts, seed and
 publicId round-trip byte-exact, watch-only comes back empty and flagged, `createVaultFile`
-still writes v1 and that v1 reads back through the new importer, and both a wrong password and
-a garbage file return a clean `{status:"error"}` rather than throwing. Console was clean, and
-the network log showed **only** the HTML being fetched — no async chunk.
+still writes v1 and that v1 reads back through the new importer, a wrong password returns a
+clean `{status:"error"}`, and garbage input returns the stable `INVALID VAULT FILE` /
+`Could not parse seeds JSON` strings rather than a library error class or a raw `TypeError`.
+Console was clean, and the network log showed **only** the HTML being fetched — no async chunk.
+
+### Error strings are part of the contract
+
+The Flutter side matches these strings **exactly** to choose a localized message (see
+`wallet-app/lib/resources/qubic_js.dart`). Every error crossing the bridge must therefore be a
+stable, wallet-authored string — never a third-party error class name and never a raw
+`TypeError`. Group 8 of `test-bridge.mjs` locks that down.
 
 Note the bridge signals failure by **returning** `{status:"error", error:"…"}` — it does not
 throw. A test that only wraps the call in `try/catch` will report a false failure.
@@ -172,7 +180,10 @@ is simply unavailable. `tryNewVaultManager()` returns `null` there and the calle
   change**, which is what those binaries did anyway.
 - v3 read/write returns a plain `"not supported by this build"` message instead of an opaque
   V8 error.
-- Version detection falls back to reading the first byte (`{` = v1, otherwise the version byte).
+- Version detection falls back to `detectVaultVersion`, which mirrors the library rather than
+  trusting the first byte: v3 only for a `0x03`-led envelope of at least 61 bytes, v1 only for
+  bytes that actually `JSON.parse` into `{salt, iv, cipher}` (so a BOM or leading whitespace
+  still resolves correctly), and `INVALID VAULT FILE` for anything else.
 
 Giving the packaged CLIs real v3 support needs an ESM-aware bundling step before `pkg`, or
 dropping `pkg` for something that understands ESM. Not done here.

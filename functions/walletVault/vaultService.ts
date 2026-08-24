@@ -2,12 +2,9 @@ import { WalletImporter } from "../walletImporter/walletImporter";
 import { loadVaultModule } from "./vaultModule";
 
 /**
- * Returns a `VaultManager`, or `null` when `@qubic.org/vault` cannot be loaded at all.
- *
- * That happens inside the `pkg`-built CLIs: their V8 snapshot cannot evaluate a dynamic
- * `import()` and throws `TypeError: Invalid host defined options`. Callers degrade to the
- * wrapper's own legacy importer rather than failing, which keeps the packaged CLIs able to
- * read v1 vaults exactly as they did before this change.
+ * Returns a `VaultManager`, or `null` inside the `pkg`-built CLIs, whose V8 snapshot cannot
+ * evaluate a dynamic `import()`. Callers degrade to the legacy importer instead of failing,
+ * so those binaries keep reading v1 vaults exactly as before.
  */
 async function tryNewVaultManager(): Promise<any | null> {
   try {
@@ -49,29 +46,37 @@ function toUint8Array(data: ArrayBuffer | Uint8Array): Uint8Array {
 }
 
 /**
- * Reads the format version straight off the bytes, without `@qubic.org/vault`.
- *
- * A legacy vault is a JSON document, so it starts with `{`. Every later format is a binary
- * envelope whose first byte *is* the version. Used when the library is unavailable (the
- * packaged CLIs) and to pick the right path before the library is even consulted.
+ * Version detection for when the library is unavailable (the `pkg` CLIs). Deliberately not a
+ * first-byte check: parsing the JSON means a v1 file carrying a BOM or leading whitespace
+ * still resolves, and anything unrecognised is rejected rather than reported as some
+ * arbitrary version number.
  */
 function detectVaultVersion(bytes: Uint8Array): number {
-  if (bytes.length === 0) {
-    throw new Error("INVALID VAULT FILE");
+  if (bytes[0] === VAULT_VERSION_CURRENT && bytes.length >= 61) {
+    return VAULT_VERSION_CURRENT;
   }
-  return bytes[0] === 0x7b /* '{' */ ? VAULT_VERSION_LEGACY : bytes[0];
+  try {
+    const parsed = JSON.parse(textDecoder.decode(bytes));
+    if (parsed && parsed.salt && parsed.iv && parsed.cipher) {
+      return VAULT_VERSION_LEGACY;
+    }
+  } catch (e) {}
+  throw new Error("INVALID VAULT FILE");
 }
 
-/**
- * Detects the vault format without decrypting.
- * Returns 1 (legacy JSON `{salt,iv,cipher}`) or 3 (binary Argon2id envelope).
- */
+/** Returns 1 (legacy JSON `{salt,iv,cipher}`) or 3 (binary Argon2id envelope). */
 export async function getVaultVersion(
   data: ArrayBuffer | Uint8Array
 ): Promise<number> {
   const bytes = toUint8Array(data);
   const manager = await tryNewVaultManager();
-  return manager ? manager.getVersion(bytes) : detectVaultVersion(bytes);
+  try {
+    return manager ? manager.getVersion(bytes) : detectVaultVersion(bytes);
+  } catch (e) {
+    // Same contract as unlockVault: every bridge error in this repo is a stable
+    // wallet-authored string, never a third-party error class name.
+    return Promise.reject("INVALID VAULT FILE");
+  }
 }
 
 /**
@@ -107,46 +112,47 @@ async function unlockLegacyWithFallback(
   return seeds;
 }
 
+/** Same shape the export path enforces. */
+const SEED_PATTERN = /^[a-z]{55}$/;
+
 /**
- * True when a payload returned by `@qubic.org/vault` is missing seed material that the
- * vault is supposed to contain (i.e. a non-watch-only account came back without a seed).
+ * True when the library returned a vault without the seed material it should contain.
  *
- * `@qubic.org/vault@1.2.0` returns v1 accounts *without* decrypting `encryptedSeed`, so
- * this guard is what keeps us from silently importing seed-less (unusable) accounts.
+ * Do not remove: `@qubic.org/vault@1.2.0` returned v1 accounts *without* decrypting
+ * `encryptedSeed`, and this guard is what stops that being imported as a set of unusable
+ * accounts. An empty list counts as missing for the same reason.
  */
 function isMissingSeedMaterial(seeds: RecoveredSeed[]): boolean {
-  return seeds.some((s) => !s.isOnlyWatch && s.seed.length === 0);
+  return (
+    seeds.length === 0 || seeds.some((s) => !s.isOnlyWatch && s.seed.length === 0)
+  );
 }
 
 function mapPayloadSeeds(payloadSeeds: any[]): RecoveredSeed[] {
   return (payloadSeeds ?? []).map((entry) => {
     const isOnlyWatch = entry.isOnlyWatch === true;
     const raw = entry.encryptedSeed;
+    // The watch-only flag is authoritative, as on the legacy path. Shape-check the result
+    // too: TextDecoder turns invalid bytes into U+FFFD rather than throwing, so without this
+    // garbage would reach the wallet as a spendable account.
+    const decoded =
+      !isOnlyWatch && raw && raw.length > 0 ? textDecoder.decode(raw) : "";
     return {
       alias: entry.alias ?? "",
       publicId: entry.publicId,
-      seed: raw && raw.length > 0 ? textDecoder.decode(raw) : "",
+      seed: SEED_PATTERN.test(decoded) ? decoded : "",
       isOnlyWatch,
     };
   });
 }
 
 /**
- * Unlocks a vault file of ANY supported version and returns its seeds.
+ * Unlocks a vault file of any supported version and returns its seeds.
  *
- * - v3 vaults are read with `@qubic.org/vault`.
- * - v1 vaults are read with `@qubic.org/vault` when it can fully recover the seeds, and
- *   otherwise fall back to the wrapper's own importer.
- *
- * The fallback exists because legacy support in `@qubic.org/vault` is still landing
- * (see qubic/qubic-typescript#27): 1.2.0 drops v1 seeds entirely, and the pending fix
- * throws on vaults that contain a watch-only account. Falling back keeps legacy imports
- * byte-for-byte identical to today's behaviour regardless of which version is installed.
- * Once legacy support is released and verified, the fallback can be removed.
- *
- * It also covers the packaged CLIs, where the library cannot be loaded at all: v1 keeps
- * working through the wrapper's own importer, and v3 reports a clear error instead of an
- * opaque one. See `tryNewVaultManager`.
+ * v1 falls back to the wrapper's own importer whenever the library cannot fully recover the
+ * vault, which keeps legacy imports correct on every version of it: 1.2.0 drops v1 seeds
+ * entirely and the fix in qubic/qubic-typescript#27 threw on watch-only accounts. The
+ * fallback can go once every wallet is on 1.2.1+.
  */
 export async function unlockVault(
   data: ArrayBuffer | Uint8Array,
@@ -178,14 +184,17 @@ export async function unlockVault(
       if (!isMissingSeedMaterial(seeds)) {
         return seeds;
       }
-    } catch (e) {
-      // fall through to the legacy importer
-    }
+    } catch (e) {}
     return unlockLegacyWithFallback(bytes, password);
   }
 
   const payload = await manager.unlock(bytes, password);
-  return mapPayloadSeeds(payload.seeds as any[]);
+  const seeds = mapPayloadSeeds(payload.seeds as any[]);
+  // Nothing can read v3 but the library, so there is no fallback here — refuse the file.
+  if (isMissingSeedMaterial(seeds)) {
+    return Promise.reject("INVALID VAULT FILE");
+  }
+  return seeds;
 }
 
 /**

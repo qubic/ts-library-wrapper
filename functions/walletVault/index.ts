@@ -20,18 +20,24 @@ function parseSeeds(seedsJSON: string): ExportableSeed[] {
   } catch (e) {
     throw "Could not parse seeds JSON";
   }
+  // Valid JSON that is not an array would otherwise reach .map and surface a raw
+  // TypeError. The Flutter side matches this exact string to pick a localized
+  // message (see wallet-app lib/resources/qubic_js.dart), so it has to be stable.
+  if (!Array.isArray(inputSeeds)) {
+    throw "Could not parse seeds JSON";
+  }
 
   return inputSeeds.map((seed) => {
     if (
       seed.seed === null ||
       seed.seed === undefined ||
-      (!/^([a-z]){55}$/g.test(seed.seed) && seed.seed !== "")
+      (!/^[a-z]{55}$/.test(seed.seed) && seed.seed !== "")
     ) {
       throw new Error(
         "Seed must be 55 characters long and only contain lowercase letters, or be an empty string"
       );
     }
-    if (!seed.publicId || !/^([A-Z]){60}$/g.test(seed.publicId)) {
+    if (!seed.publicId || !/^[A-Z]{60}$/.test(seed.publicId)) {
       throw new Error(
         "Public ID must be 60 characters long and contain only uppercase letters"
       );
