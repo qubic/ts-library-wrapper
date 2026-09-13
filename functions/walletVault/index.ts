@@ -1,55 +1,6 @@
 import { Functioneer } from "functioneer";
 import { arrayBufferToBase64 } from "../../lib/qubicInterface";
-import {
-  createVaultV3,
-  ExportableSeed,
-  getVaultVersion,
-} from "./vaultService";
-
-interface exportedSeedInfo {
-  isOnlyWatch: boolean;
-  alias: string;
-  seed: string;
-  publicId: string;
-}
-
-function parseSeeds(seedsJSON: string): ExportableSeed[] {
-  let inputSeeds: exportedSeedInfo[] = [];
-  try {
-    inputSeeds = JSON.parse(seedsJSON) as exportedSeedInfo[];
-  } catch (e) {
-    throw "Could not parse seeds JSON";
-  }
-  // Valid JSON that is not an array would otherwise reach .map and surface a raw
-  // TypeError. The Flutter side matches this exact string to pick a localized
-  // message (see wallet-app lib/resources/qubic_js.dart), so it has to be stable.
-  if (!Array.isArray(inputSeeds)) {
-    throw "Could not parse seeds JSON";
-  }
-
-  return inputSeeds.map((seed) => {
-    if (
-      seed.seed === null ||
-      seed.seed === undefined ||
-      (!/^[a-z]{55}$/.test(seed.seed) && seed.seed !== "")
-    ) {
-      throw new Error(
-        "Seed must be 55 characters long and only contain lowercase letters, or be an empty string"
-      );
-    }
-    if (!seed.publicId || !/^[A-Z]{60}$/.test(seed.publicId)) {
-      throw new Error(
-        "Public ID must be 60 characters long and contain only uppercase letters"
-      );
-    }
-    return {
-      alias: seed.alias,
-      seed: seed.seed,
-      publicId: seed.publicId,
-      isOnlyWatch: seed.isOnlyWatch,
-    };
-  });
-}
+import { createVaultV3, getVaultVersion, parseSeeds } from "./vaultService";
 
 export function addFunctions(func: Functioneer) {
   func
@@ -68,7 +19,7 @@ export function addFunctions(func: Functioneer) {
   func
     .registerFunction(
       "wallet.createVaultFileV3",
-      "Creates a v3 (Argon2id) vault file from wallet contents. NOTE: only export v3 once every wallet can read it.",
+      "Creates a v3 (Argon2id) vault file from wallet contents. Always v3, unlike wallet.createVaultFile which falls back to v1 in the desktop CLIs.",
       async (password: string, seedsJSON: string) => {
         const seeds = parseSeeds(seedsJSON);
         const vault = await createVaultV3(password, seeds);

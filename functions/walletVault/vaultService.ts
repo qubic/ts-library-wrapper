@@ -16,6 +16,19 @@ async function tryNewVaultManager(): Promise<any | null> {
 }
 
 /**
+ * A `VaultManager` when a v3 vault can actually be written here, or `null` when callers must
+ * fall back to v1. The check is Web Crypto, not whether the library loaded: the pkg-built
+ * desktop CLIs run on Node 16, which has no `globalThis.crypto`, so `VaultManager.create`
+ * would throw on `getRandomValues` at write time. The browser/HTML asset always has it.
+ */
+export async function tryVaultManagerForWriting(): Promise<any | null> {
+  if (typeof globalThis.crypto?.getRandomValues !== "function") {
+    return null;
+  }
+  return tryNewVaultManager();
+}
+
+/**
  * A seed recovered from a vault file.
  * `seed` is an empty string for watch-only accounts (matches the legacy bridge contract
  * and `QubicImportVaultSeed` on the Flutter side, which tolerates an empty seed).
@@ -80,13 +93,10 @@ export async function getVaultVersion(
 }
 
 /**
- * Reads seeds from a v1 vault using the wrapper's own (long-proven) importer.
- *
- * This is the compatibility path: it correctly RSA-decrypts seeds and returns an empty
- * seed for watch-only accounts. It is used whenever `@qubic.org/vault` cannot fully
- * recover a legacy vault (see `unlockVault`).
+ * Reads a v1 vault with the wrapper's own importer. Only used where `@qubic.org/vault` does
+ * not load, which is the pkg-built desktop CLIs; everywhere else the library reads v1 too.
  */
-async function unlockLegacyWithFallback(
+async function unlockLegacyWithoutLibrary(
   data: Uint8Array,
   password: string
 ): Promise<RecoveredSeed[]> {
@@ -112,8 +122,55 @@ async function unlockLegacyWithFallback(
   return seeds;
 }
 
-/** Same shape the export path enforces. */
+/** A valid Qubic seed: 55 lowercase letters. */
 const SEED_PATTERN = /^[a-z]{55}$/;
+
+interface SeedsJSONEntry {
+  alias: string;
+  publicId: string;
+  seed: string;
+  isOnlyWatch?: boolean;
+}
+
+/**
+ * Parses the seeds JSON the bridge receives into validated seeds. The error strings are a
+ * contract: Flutter matches "Could not parse seeds JSON" exactly to pick a localized message
+ * (see wallet-app lib/resources/qubic_js.dart), so they must stay stable.
+ */
+export function parseSeeds(seedsJSON: string): ExportableSeed[] {
+  let inputSeeds: SeedsJSONEntry[];
+  try {
+    inputSeeds = JSON.parse(seedsJSON) as SeedsJSONEntry[];
+  } catch (e) {
+    throw "Could not parse seeds JSON";
+  }
+  // Valid JSON that is not an array would otherwise reach .map and surface a raw TypeError.
+  if (!Array.isArray(inputSeeds)) {
+    throw "Could not parse seeds JSON";
+  }
+  return inputSeeds.map((seed) => {
+    if (
+      seed.seed === null ||
+      seed.seed === undefined ||
+      (!SEED_PATTERN.test(seed.seed) && seed.seed !== "")
+    ) {
+      throw new Error(
+        "Seed must be 55 characters long and only contain lowercase letters, or be an empty string"
+      );
+    }
+    if (!seed.publicId || !/^[A-Z]{60}$/.test(seed.publicId)) {
+      throw new Error(
+        "Public ID must be 60 characters long and contain only uppercase letters"
+      );
+    }
+    return {
+      alias: seed.alias,
+      seed: seed.seed,
+      publicId: seed.publicId,
+      isOnlyWatch: seed.isOnlyWatch,
+    };
+  });
+}
 
 /**
  * True when the library returned a vault without the seed material it should contain.
@@ -147,12 +204,9 @@ function mapPayloadSeeds(payloadSeeds: any[]): RecoveredSeed[] {
 }
 
 /**
- * Unlocks a vault file of any supported version and returns its seeds.
- *
- * v1 falls back to the wrapper's own importer whenever the library cannot fully recover the
- * vault, which keeps legacy imports correct on every version of it: 1.2.0 drops v1 seeds
- * entirely and the fix in qubic/qubic-typescript#27 threw on watch-only accounts. The
- * fallback can go once every wallet is on 1.2.1+.
+ * Unlocks a vault file of any supported version and returns its seeds. `@qubic.org/vault`
+ * reads both v1 and v3; where it does not load (the pkg-built CLIs) v1 is read by the
+ * wrapper's own importer and v3 is refused.
  */
 export async function unlockVault(
   data: ArrayBuffer | Uint8Array,
@@ -174,23 +228,19 @@ export async function unlockVault(
         `Vault format v${version} is not supported by this build`
       );
     }
-    return unlockLegacyWithFallback(bytes, password);
+    return unlockLegacyWithoutLibrary(bytes, password);
   }
 
-  if (version === VAULT_VERSION_LEGACY) {
-    try {
-      const payload = await manager.unlock(bytes, password);
-      const seeds = mapPayloadSeeds(payload.seeds as any[]);
-      if (!isMissingSeedMaterial(seeds)) {
-        return seeds;
-      }
-    } catch (e) {}
-    return unlockLegacyWithFallback(bytes, password);
+  let payload: any;
+  try {
+    payload = await manager.unlock(bytes, password);
+  } catch (e) {
+    // Stable wallet-authored string, never the library's error class (see README).
+    return Promise.reject("Import Failed (password or file do not match)");
   }
-
-  const payload = await manager.unlock(bytes, password);
-  const seeds = mapPayloadSeeds(payload.seeds as any[]);
-  // Nothing can read v3 but the library, so there is no fallback here — refuse the file.
+  const seeds = mapPayloadSeeds(payload?.seeds as any[]);
+  // A vault the library returns without its seed material is refused, not imported as a set
+  // of unusable accounts.
   if (isMissingSeedMaterial(seeds)) {
     return Promise.reject("INVALID VAULT FILE");
   }
@@ -198,18 +248,16 @@ export async function unlockVault(
 }
 
 /**
- * Writes a v3 (Argon2id) vault file containing the given seeds.
- *
- * NOTE ON ROLLOUT: a v3 vault cannot be read by any wallet that has not yet shipped a v3
- * reader. Keep exporting v1 (`wallet.createVaultFile`) until the web wallet, the browser
- * extension and the mobile wallet can all *read* v3.
+ * Writes a v3 (Argon2id) vault file containing the given seeds. `wallet.createVaultFile`
+ * routes here whenever v3 can be written (see `tryVaultManagerForWriting`) and falls back
+ * to the legacy v1 writer otherwise.
  */
 export async function createVaultV3(
   password: string,
   seeds: ExportableSeed[]
 ): Promise<Uint8Array> {
   const now = new Date().toISOString();
-  const manager = await tryNewVaultManager();
+  const manager = await tryVaultManagerForWriting();
   if (!manager) {
     return Promise.reject("Writing v3 vaults is not supported by this build");
   }

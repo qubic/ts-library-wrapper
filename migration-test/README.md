@@ -1,7 +1,8 @@
 # Vault migration — `@qubic.org/vault` integration + fixtures
 
-The wrapper reads vault files through **`@qubic.org/vault`** (currently `1.2.1`), with a fallback
-to its own legacy importer. This folder holds the fixtures and the end-to-end tests that prove it.
+The wrapper reads vault files through **`@qubic.org/vault`** (currently `1.2.1`). In the pkg-built
+CLIs, where the library does not load, v1 files are read by the wrapper's own legacy importer.
+This folder holds the fixtures and the end-to-end tests that prove it.
 
 **Status: done and verified on Android.** What remains is listed under *Open items* below.
 
@@ -38,8 +39,8 @@ run under jest is its own change.
 | `wallet.importVault` | Reads **v1 and v3**. Same JSON contract as before, so Flutter needs no change. |
 | `wallet.importVaultFile` | Same, for the CLI path. |
 | `wallet.getVaultVersion` | **New.** Returns 1 or 3 without decrypting. |
-| `wallet.createVaultFileV3` | **New.** Writes a v3 (Argon2id) vault. Not yet used by any app. |
-| `wallet.createVaultFile` | **Unchanged — still writes v1.** See rollout below. |
+| `wallet.createVaultFileV3` | **New.** Always writes a v3 (Argon2id) vault. |
+| `wallet.createVaultFile` | Writes **v3 where Web Crypto is present** (the browser/HTML asset the web and mobile wallets ship), and **falls back to v1 in the pkg-built desktop CLIs**. See rollout below. |
 
 Implementation lives in [`functions/walletVault/`](../functions/walletVault/):
 `vaultService.ts` holds the logic, `index.ts` registers the bridge functions, and
@@ -62,32 +63,22 @@ watch-only account** (`encryptedSeed: ""` → RSA-OAEP rejects an empty cipherte
 guard + regression tests to that PR (commit `1b5ce306`, `fix(vault): unlock v1 vaults with
 watch-only accounts`). PR #27 is merged; sally published **`1.2.1`** manually.
 
-## Why there is still a fallback
-
-`unlockVault()` uses `@qubic.org/vault`, and falls back to the wrapper's own `WalletImporter`
-whenever the library cannot fully recover a legacy vault. This keeps legacy imports correct on
-**every** version of the library:
-
-| Installed library | Legacy (v1) import | Watch-only in vault |
-|---|---|---|
-| `1.2.0` — drops v1 seeds | fallback → ✅ correct | ✅ |
-| PR #27 branch — recovers seeds, throws on watch-only | library → ✅ | fallback → ✅ |
-| **`1.2.1` (current)** — both fixed | library → ✅ | library → ✅ |
-
-With `1.2.1` the fallback is no longer exercised, so it can be deleted — but it is cheap
-insurance and costs nothing while other wallets are still migrating. Removing it is a deliberate
-follow-up, not an oversight.
-
 ## Rollout (important — do not skip)
 
-A v3 vault **cannot be read by any wallet that has not shipped a v3 reader**. So:
+A v3 vault **cannot be read by any wallet that has not shipped a v3 reader**, so writing v3 is
+gated on the reader being present in that environment:
 
-1. Ship the **reader** everywhere first (web, extension, mobile) — that is what this change does.
-2. Keep exporting **v1** (`wallet.createVaultFile`) until all three can read v3.
-3. Only then switch the default export to `wallet.createVaultFileV3`.
+- **Web and mobile** ship the reader (this change) *and* read v3, so `createVaultFile` writes
+  v3 for them. Both consume the Parcel-built HTML asset, where `globalThis.crypto` is present.
+- **The desktop CLIs** (`qubic-helper-{win,linux,mac}`, built with `pkg`) cannot write v3: the
+  Node 16 snapshot has no `globalThis.crypto`, so `VaultManager.create` would throw at write
+  time. `createVaultFile` detects this and **falls back to v1** there. Desktop stays fully
+  functional on v1 until the pkg build is made ESM/crypto-aware (see *Open items*).
 
-This is why `createVaultFile` was deliberately left on v1. Flipping it early would let a user
-export on mobile and be unable to import on web.
+The split is a single check in `tryVaultManagerForWriting` (`vaultService.ts`): `globalThis.crypto`
+present → v3, absent → v1. It is verified two ways: `test-export-fallback.mjs` runs the same
+`createVaultFile` with and without the global, and a real `pkg` binary was built and confirmed
+to emit a v1 (`{…}`) file.
 
 ## Verified on a real Android emulator (v2.5.0 build 93)
 
@@ -135,7 +126,6 @@ throw. A test that only wraps the call in `try/catch` will report a false failur
 
 ## Open items
 
-1. **Remove the fallback** in `vaultService.ts` once every wallet is on `1.2.1`+ (see above).
 2. **`@qubic.org/wallet` still breaks on watch-only vaults** — `packages/wallet/src/vault.ts:58`
    does `toSeed(entry.publicId)` for seedless entries, and a 60-char identity is never a valid
    55-char seed, so it throws. Needs an API decision upstream (filter those entries out =

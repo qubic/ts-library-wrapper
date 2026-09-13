@@ -19,7 +19,7 @@ const myVault = readFileSync(new URL('./legacy-v1-sample.qubic-vault', import.me
 const myExpected = JSON.parse(readFileSync(new URL('./legacy-v1-sample.expected.json', import.meta.url), 'utf8'));
 const hisVault = readFileSync(new URL('./his-test.qubic-vault', import.meta.url));
 
-// build a v1 vault containing a WATCH-ONLY account (the case the pending fix breaks on)
+// build a v1 vault containing a WATCH-ONLY account (it must come back flagged, with no seed)
 async function buildWatchOnlyV1(password) {
   const subtle = globalThis.crypto.subtle;
   const RSA = { name: 'RSA-OAEP', modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: { name: 'SHA-256' } };
@@ -112,16 +112,23 @@ line('6) wrong password is rejected');
   check('returns error status', res.status === 'error', 'status=' + res.status);
 }
 
-// ---------- 7) legacy writer untouched (lockstep) ----------
-line('7) wallet.createVaultFile still writes LEGACY v1 (rollout lockstep)');
+// ---------- 7) createVaultFile writes v3 in the browser build ----------
+line('7) wallet.createVaultFile writes v3 where Web Crypto is present (browser/HTML asset)');
 {
-  const seedsJSON = JSON.stringify([{ alias: 'L', seed: 'y'.repeat(55), publicId: 'E'.repeat(60), isOnlyWatch: false }]);
-  const created = await runBrowser('wallet.createVaultFile', 'pw-v1', seedsJSON);
+  // This bundle has globalThis.crypto like the shipped HTML asset, so createVaultFile writes
+  // v3. The v1 fallback of the crypto-less pkg CLIs is covered by test-export-fallback.mjs.
+  const seedsJSON = JSON.stringify([
+    { alias: 'L', seed: 'y'.repeat(55), publicId: 'E'.repeat(60), isOnlyWatch: false },
+    { alias: 'W', seed: '', publicId: 'F'.repeat(60), isOnlyWatch: true },
+  ]);
+  const created = await runBrowser('wallet.createVaultFile', 'pw-v3', seedsJSON);
   check('created', created.status === 'ok', created.error ?? '');
   const ver = await runBrowser('wallet.getVaultVersion', created.base64);
-  check('still version 1', ver.version === 1, 'got ' + ver.version);
-  const back = await runBrowser('wallet.importVault', 'pw-v1', created.base64);
-  check('round-trips through new importer', back.seeds?.[0]?.seed === 'y'.repeat(55));
+  check('writes version 3', ver.version === 3, 'got ' + ver.version);
+  const back = await runBrowser('wallet.importVault', 'pw-v3', created.base64);
+  check('round-trips through importer', back.seeds?.find((s) => !s.isOnlyWatch)?.seed === 'y'.repeat(55));
+  check('watch-only round-trips without a seed',
+    back.seeds?.find((s) => s.isOnlyWatch)?.seed === '');
 }
 
 // ---------- 8) malformed input is rejected with STABLE wallet-authored strings ----------
