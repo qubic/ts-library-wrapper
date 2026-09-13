@@ -1,43 +1,31 @@
-import { Functioneer, FunctionRunResult } from "functioneer";
+import { Functioneer } from "functioneer";
+import { unlockVault } from "../walletVault/vaultService";
+import { IDecodedSeed } from "./model/seed";
 import { WalletImporter } from "./walletImporter";
-import { IDecodedSeed, ISeed } from "./model/seed";
-
-interface exportedSeedInfo {
-  alias: string;
-  seed: string;
-  publicId: string;
-  watchOnly: boolean;
-}
 
 export function addFunction(func: Functioneer) {
   func
     .registerFunction(
       "wallet.importVault",
-      "Reads the seeds of a vault file as base64. (supports only non watch only seeds)",
+      "Reads the seeds of a vault file as base64. Supports legacy (v1) and current (v3) vault files.",
       async (password: string, base64VaultFile: string) => {
         const walletImporter = new WalletImporter();
         const ab = await walletImporter.base64ToArrayBuffer(base64VaultFile);
-        const success = await walletImporter.importVault(ab, password);
-        if (success) {
-          const importedSeeds = walletImporter.getSeeds();
-          const seeds: IDecodedSeed[] = [];
+        const recovered = await unlockVault(ab, password);
 
-          for (const seed of importedSeeds) {
-            seeds.push({
-              alias: seed.alias,
-              seed: await walletImporter.revealSeed(seed.publicId),
-              publicId: seed.publicId,
-              balance: 0,
-              balanceTick: 0,
-              encryptedSeed: "",
-            });
-          }
-          return JSON.stringify({
-            seeds: seeds,
-          });
-        } else {
-          throw "Import Failed (password or file do not match)";
-        }
+        const seeds: IDecodedSeed[] = recovered.map((seed) => ({
+          alias: seed.alias,
+          seed: seed.seed,
+          publicId: seed.publicId,
+          balance: 0,
+          balanceTick: 0,
+          encryptedSeed: "",
+          isOnlyWatch: seed.isOnlyWatch,
+        }));
+
+        return JSON.stringify({
+          seeds: seeds,
+        });
       }
     )
     .addField("password", "string", "Password to decrypt the vault file with")
@@ -46,33 +34,25 @@ export function addFunction(func: Functioneer) {
   func
     .registerFunction(
       "wallet.importVaultFile",
-      "Reads the seeds of a vault file. (supports only non watch only seeds)",
+      "Reads the seeds of a vault file. Supports legacy (v1) and current (v3) vault files.",
       async (password: string, filename: string) => {
-        const walletImporter = new WalletImporter();
         const { readFileSync } = require("fs");
-        var contents = readFileSync(filename, null);
+        const contents = readFileSync(filename, null);
 
-        const success = await walletImporter.importVault(contents, password);
-        if (success) {
-          const importedSeeds = walletImporter.getSeeds();
-          const seeds = [];
+        const recovered = await unlockVault(contents, password);
 
-          for (const seed of importedSeeds) {
-            seeds.push({
-              alias: seed.alias,
-              seed: await walletImporter.revealSeed(seed.publicId),
-              publicId: seed.publicId,
-            });
-          }
+        const seeds = recovered.map((seed) => ({
+          alias: seed.alias,
+          seed: seed.seed,
+          publicId: seed.publicId,
+          isOnlyWatch: seed.isOnlyWatch,
+        }));
 
-          return JSON.stringify({
-            seeds: seeds,
-          });
-        } else {
-          throw "Import Failed (password or file do not match)";
-        }
+        return JSON.stringify({
+          seeds: seeds,
+        });
       }
     )
     .addField("password", "string", "Password to decrypt the vault file with")
-    .addField("base64VaultFile", "string", "Base64 encoded vault file");
+    .addField("filename", "string", "Path to the vault file");
 }

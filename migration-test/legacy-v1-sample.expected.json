@@ -1,0 +1,15 @@
+{
+  "password": "test-vault-password",
+  "seeds": [
+    {
+      "alias": "Main Account",
+      "publicId": "ZALXPQOIWIWQMZNSKNFACVXGPPDDOWPQYLYPKFNDGHYLGNJLLJMLTPAYLRCF",
+      "seed": "dqevzxrjojfosgbgowurtksrowdndeipehzdobudraauqpleoecwzxt"
+    },
+    {
+      "alias": "Savings Account",
+      "publicId": "LPKKYXIUPFZCOEZFQJLGBQPTKBCYIZILLRFRJUUJGAWCASKTUGZPUFKCYUDJ",
+      "seed": "xygizxwoxofvcxdxxrkiszqhipnfgbywurdrglyavzizjcvgqbxjhxg"
+    }
+  ]
+}

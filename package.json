@@ -10,6 +10,9 @@
     "build": "npm run build-ts && npm run build-html && npm run build-win",
     "build-all": "npm run build-ts && rm -rf .parcel-cache && npm run build-html && npm run build-win && npm run build-linux && npm run build-mac"
   },
+  "browser": {
+    "./functions/walletVault/vaultModule.ts": "./functions/walletVault/vaultModule.browser.ts"
+  },
   "devDependencies": {
     "@babel/preset-typescript": "^7.24.7",
     "@jest/globals": "^29.7.0",
@@ -27,6 +30,7 @@
   "dependencies": {
     "@qubic-lib/qubic-ts-library": "^0.1.5",
     "@qubic-lib/qubic-ts-vault-library": "^1.0.2",
+    "@qubic.org/vault": "^1.2.1",
     "bignumber.js": "^4.0.4",
     "cross-spawn": "^7.0.6",
     "elliptic": "^6.6.1",
